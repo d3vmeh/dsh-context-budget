@@ -1,6 +1,6 @@
 {
   "name": "dsh-context-budget",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Keeps a local model's context at a size the GPU handles well: measured prefill speed, hard ceiling, early compaction for DeepSeek Harness",
   "license": "MIT",
   "type": "module",

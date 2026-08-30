@@ -301,3 +301,38 @@ describe('/context-budget command and exporter', () => {
     } finally { log.mockRestore() }
   })
 })
+
+describe('v0.2: per-sample timestamp and cache state', () => {
+  it('RateMeter stores at and warm, and evicts them with the ring', () => {
+    const m = new RateMeter(2)
+    m.add(1000, 1000, { at: 111, warm: true })
+    m.add(2000, 1000, { at: 222, warm: false })
+    m.add(3000, 1000, { at: 333 })
+    expect(m.samples).toEqual([
+      { uncached: 2000, ttftMs: 1000, at: 222, warm: false },
+      { uncached: 3000, ttftMs: 1000, at: 333, warm: false },
+    ])
+  })
+  it('a request with cache reads is a warm sample, without is cold', async () => {
+    const { streamL, commands, now } = setup({ p: { hardCeilingTokens: 100000 } })
+    await stream(streamL, { provider: 'p', sessionId: 'session-abcdef1234' }, [usage(4000, 500), finish], 2000, now)
+    now.t += 600000
+    await stream(streamL, { provider: 'p', sessionId: 'session-abcdef1234' }, [usage(8000), finish], 3000, now)
+    now.t += 120000
+    const text = commands[0].handler({ agent: fakeAgent() }).text
+    const lines = text.split('\n').filter((l) => l.includes('tok in'))
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toContain('8000 tok in 3 s')
+    expect(lines[0]).toContain('cold')
+    expect(lines[0]).toContain('2 min ago')
+    expect(lines[1]).toContain('4000 tok in 2 s')
+    expect(lines[1]).toContain('warm')
+    expect(lines[1]).toContain('12 min ago')
+  })
+  it('no sample lines when there are no samples', () => {
+    const { commands } = setup({ p: { hardCeilingTokens: 100000 } })
+    const text = commands[0].handler({ agent: fakeAgent() }).text
+    expect(text).toContain('no samples yet')
+    expect(text).not.toContain('tok in')
+  })
+})

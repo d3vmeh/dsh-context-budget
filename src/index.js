@@ -34,9 +34,9 @@ export class RateMeter {
     this.samples = []
   }
 
-  add(uncached, ttftMs) {
+  add(uncached, ttftMs, extra = {}) {
     if (!(uncached >= MIN_SAMPLE_TOKENS) || !(ttftMs > 0)) return false
-    this.samples.push({ uncached, ttftMs })
+    this.samples.push({ uncached, ttftMs, at: extra.at, warm: extra.warm === true })
     if (this.samples.length > this.size) this.samples.shift()
     return true
   }
@@ -110,6 +110,12 @@ const shortId = (id) => String(id).replace(/^session-/, '').slice(0, 8)
 const errorMessage = (e) => (e instanceof Error ? e.message : String(e))
 const tokPerSec = (rate) => (rate === undefined ? 'n/a' : `${Math.round(rate * 1000)} tok/s`)
 const minutes = (ms) => (ms === undefined ? 'n/a' : `~${(ms / 60000).toFixed(1)} min`)
+const age = (deltaMs) => {
+  if (!(deltaMs >= 0)) return 'age unknown'
+  if (deltaMs < 60000) return `${Math.round(deltaMs / 1000)} s ago`
+  if (deltaMs < 3600000) return `${Math.round(deltaMs / 60000)} min ago`
+  return `${(deltaMs / 3600000).toFixed(1)} h ago`
+}
 
 export function apply(ctx, config = {}, internals = {}) {
   validateConfig(config)
@@ -152,7 +158,10 @@ export function apply(ctx, config = {}, internals = {}) {
           const id = options.sessionId === undefined ? undefined : String(options.sessionId)
           if (id !== undefined) lastTtft.set(id, { ttft, gen: stepGen.get(id) })
           // dsh reports inputTokens already net of cache reads.
-          if (usage !== undefined) meterFor(options.provider).add(usage.inputTokens, ttft)
+          if (usage !== undefined) {
+            // cacheReadTokens is only set when > 0: present means the server reused its prompt cache.
+            meterFor(options.provider).add(usage.inputTokens, ttft, { at: t0, warm: (usage.cacheReadTokens ?? 0) > 0 })
+          }
         }
       } catch (error) {
         ctx.logger.warn(`context-budget: measurement failed: ${errorMessage(error)}`)
@@ -225,11 +234,15 @@ export function apply(ctx, config = {}, internals = {}) {
     const view = inspect(agent)
     if (view === undefined) return "context-budget: this session's provider is not guarded (no providers entry)."
     const { cfg, total, rate, samples, lastTtftMs, target } = view
+    const meter = meterFor(target.provider)
     const trip = (cond) => (cond ? '   [TRIP]' : '')
     const lines = [`context-budget (${target.provider} / ${target.model})`]
     lines.push(`  context: ${total} tokens${cfg.hardCeilingTokens === undefined ? '' : `   ceiling ${cfg.hardCeilingTokens}${trip(total > cfg.hardCeilingTokens)}`}`)
     if (cfg.maxTtftMs !== undefined) lines.push(`  last ttft: ${lastTtftMs === undefined ? 'none yet' : sec(lastTtftMs)}   limit ${sec(cfg.maxTtftMs)}${trip(lastTtftMs !== undefined && lastTtftMs > cfg.maxTtftMs)}`)
     lines.push(`  measured rate: ${rate === undefined ? 'no samples yet' : `${tokPerSec(rate)} (${samples} sample${samples === 1 ? '' : 's'})`}`)
+    for (const s of [...meter.samples].reverse()) {
+      lines.push(`    ${age(now() - s.at)}   ${s.uncached} tok in ${sec(s.ttftMs)}   ${s.warm ? 'warm' : 'cold'}`)
+    }
     if (cfg.maxColdPrefillMs !== undefined) lines.push(`  predicted cold: ${rate === undefined ? 'n/a' : minutes(total / rate).replace('~', '')}   limit ${min(cfg.maxColdPrefillMs)}${trip(rate !== undefined && total / rate > cfg.maxColdPrefillMs)}`)
     lines.push(`  compact now: ${minutes(compactCostMs(total, cfg.retainTokens, rate))}   (retain ${cfg.retainTokens})`)
     lines.push(`  action: ${cfg.action}`)

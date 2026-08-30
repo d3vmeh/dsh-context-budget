@@ -60,11 +60,16 @@ Type it in a session to see the current values:
 context-budget (llamacpp / qwen3.8-long)
   context: 152340 tokens   ceiling 110000   [TRIP]
   last ttft: 41 s   limit 180 s
-  measured rate: 68 tok/s (5 samples)
+  measured rate: 68 tok/s (3 samples)
+    3 min ago   8400 tok in 37 s   cold
+    12 min ago   2100 tok in 8 s   warm
+    41 min ago   12800 tok in 55 s   cold
   predicted cold: 37.3 min   limit 10.0 min   [TRIP]
   compact now: ~41.2 min   (retain 24000)
   action: warn
 ```
+
+Each sample line shows when it was measured, how many uncached tokens the server had to read, the wait for the first token, and whether the server answered partly from its prompt cache (warm) or read everything fresh (cold). Warm samples have flattering timings; the list makes that visible.
 
 ## Notes
 
