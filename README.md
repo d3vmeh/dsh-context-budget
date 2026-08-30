@@ -1,4 +1,4 @@
-# dsh-context-guard
+# dsh-context-budget
 
 A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that keeps a local model's context at a size your GPU handles well. 
 
@@ -19,13 +19,13 @@ Any configured check can be tripped. If you leave the check unset, it is skipped
 ## Install
 
 ```
-dsh plugin --profile web add dsh-context-guard
+dsh plugin --profile web add dsh-context-budget
 ```
 
 Then in `~/.dsh/profiles/web/cordis.patch.yml`:
 
 ```yaml
-- id: context-guard
+- id: context-budget
   config:
     providers:
       llamacpp:
@@ -45,19 +45,19 @@ Check the composed config with `dsh --profile web --dump-config`.
 - `warn`: prints one line to the dsh terminal, naming the check and the current values, as well as an estimate of what compacting now would cost:
 
   ```
-  context-guard: llamacpp session=d1e4be82 predicted: cold prefill 37.2 min > 10.0 min (152340 tokens, rate 68 tok/s, compacting now ~41.2 min)
+  context-budget: llamacpp session=d1e4be82 predicted: cold prefill 37.2 min > 10.0 min (152340 tokens, rate 68 tok/s, compacting now ~41.2 min)
   ```
 
 - `compact`: prints the same line, then asks dsh's compaction engine to summarize everything except the most recent `retainTokens`, cut at a tool-call boundary. The outcome is printed too (`compacted N items (~T tokens)` or `compaction failed: ...; continuing`). The step always continues.
 
 Compaction itself costly on local runs ( summary prompt and the rewritten context both prefill cold) which is what the `compacting now` estimate shows, so a lower ceiling with a larger `retainTokens` usually costs less overall than many small compactions.
 
-## `/context-guard`
+## `/context-budget`
 
 Type it in a session to see the current values:
 
 ```
-context-guard (llamacpp / qwen3.8-long)
+context-budget (llamacpp / qwen3.8-long)
   context: 152340 tokens   ceiling 110000   [TRIP]
   last ttft: 41 s   limit 180 s
   measured rate: 68 tok/s (5 samples)
@@ -69,7 +69,7 @@ context-guard (llamacpp / qwen3.8-long)
 ## Notes
 
 - Works with any provider dsh streams from since nothing talks to the model server directly. Measurements come from dsh's own usage reports and wall-clock timing.
-- The guard runs beside dsh's `compaction-basic`, which keeps its own threshold. Setting a per-model `thresholdRatio` there gives you a static ceiling with no plugin. The plugin adds the measured checks and the cost estimate.
+- The plugin runs beside dsh's `compaction-basic`, which keeps its own threshold. Setting a per-model `thresholdRatio` there gives you a static ceiling with no plugin. The plugin adds the measured checks and the cost estimate.
 - Compaction summary requests are not measured, and an observed slow reply is forgotten once the context has been rewritten so one compaction does not trigger another.
 - If the session's agent preset has no compaction engine, `compact` behaves as `warn` (logged once per session).
 - Log lines are printed only when a check trips; a session that stays under the limits prints nothing.

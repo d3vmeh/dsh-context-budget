@@ -1,7 +1,7 @@
 import z from '@deepseek-ai/schemastery'
 import { toolPairingBalancedBefore } from '@deepseek-ai/dsh-compaction'
 
-export const name = 'context-guard'
+export const name = 'context-budget'
 export const inject = ['llm', 'tokenMeter', 'commands']
 
 export const MIN_SAMPLE_TOKENS = 1000
@@ -22,7 +22,7 @@ export const Config = z.object({
 export function validateConfig(config) {
   for (const [provider, c] of Object.entries(config.providers ?? {})) {
     if (c.hardCeilingTokens === undefined && c.maxTtftMs === undefined && c.maxColdPrefillMs === undefined) {
-      throw new Error(`context-guard: provider "${provider}" sets no check (hardCeilingTokens, maxTtftMs or maxColdPrefillMs)`)
+      throw new Error(`context-budget: provider "${provider}" sets no check (hardCeilingTokens, maxTtftMs or maxColdPrefillMs)`)
     }
   }
 }
@@ -89,7 +89,7 @@ export function selectRange(session, measurement, retainTokens, balanced = toolP
   const surface = session.surface.nodes
   if (priced.length === 0) return null
   if (surface.length !== priced.length || surface.some((seq, i) => seq !== priced[i].seq)) {
-    throw new Error('context-guard: token-meter surface does not match the session surface')
+    throw new Error('context-budget: token-meter surface does not match the session surface')
   }
   let accumulated = 0
   let keepFrom = priced.length
@@ -130,7 +130,7 @@ export function apply(ctx, config = {}, internals = {}) {
   ctx.logger.exporter({
     export: (message) => {
       const line = message.args[0]
-      if (typeof line === 'string' && line.startsWith('context-guard:')) console.log(line)
+      if (typeof line === 'string' && line.startsWith('context-budget:')) console.log(line)
     },
   })
 
@@ -155,7 +155,7 @@ export function apply(ctx, config = {}, internals = {}) {
           if (usage !== undefined) meterFor(options.provider).add(usage.inputTokens, ttft)
         }
       } catch (error) {
-        ctx.logger.warn(`context-guard: measurement failed: ${errorMessage(error)}`)
+        ctx.logger.warn(`context-budget: measurement failed: ${errorMessage(error)}`)
       }
     }
   })
@@ -188,18 +188,18 @@ export function apply(ctx, config = {}, internals = {}) {
     if (compaction === undefined) {
       if (!warnedNoCompaction.has(agent.id)) {
         warnedNoCompaction.add(agent.id)
-        ctx.logger.warn(`context-guard: ${view.tag} no compaction engine in this agent's preset; warning only`)
+        ctx.logger.warn(`context-budget: ${view.tag} no compaction engine in this agent's preset; warning only`)
       }
       return
     }
     try {
       const range = selectRange(agent.session, view.measurement, view.cfg.retainTokens, balanced)
-      if (range === null) { ctx.logger.info(`context-guard: ${view.tag} nothing compactable`); return }
+      if (range === null) { ctx.logger.info(`context-budget: ${view.tag} nothing compactable`); return }
       const result = await compaction.compactRegion(range.start, range.end, agent, signal)
       lastTtft.delete(String(agent.id))
-      ctx.logger.info(`context-guard: ${view.tag} compacted ${result.shadowedSeqs.length} items (~${result.shadowedTokenCount} tokens)`)
+      ctx.logger.info(`context-budget: ${view.tag} compacted ${result.shadowedSeqs.length} items (~${result.shadowedTokenCount} tokens)`)
     } catch (error) {
-      ctx.logger.warn(`context-guard: ${view.tag} compaction failed: ${errorMessage(error)}; continuing`)
+      ctx.logger.warn(`context-budget: ${view.tag} compaction failed: ${errorMessage(error)}; continuing`)
     }
   }
 
@@ -211,22 +211,22 @@ export function apply(ctx, config = {}, internals = {}) {
         const hit = view === undefined ? undefined : evaluate(view.cfg, view.total, view.lastTtftMs, view.rate)
         if (hit !== undefined) {
           const cost = minutes(compactCostMs(view.total, view.cfg.retainTokens, view.rate))
-          ctx.logger.info(`context-guard: ${view.tag} ${hit.check}: ${hit.detail} (${view.total} tokens, rate ${tokPerSec(view.rate)}, compacting now ${cost})`)
+          ctx.logger.info(`context-budget: ${view.tag} ${hit.check}: ${hit.detail} (${view.total} tokens, rate ${tokPerSec(view.rate)}, compacting now ${cost})`)
           if (view.cfg.action === 'compact') await compact(agent, view, signal)
         }
       }
     } catch (error) {
-      ctx.logger.warn(`context-guard: ${errorMessage(error)}`)
+      ctx.logger.warn(`context-budget: ${errorMessage(error)}`)
     }
     return next()
   })
 
   function report(agent) {
     const view = inspect(agent)
-    if (view === undefined) return "context-guard: this session's provider is not guarded (no providers entry)."
+    if (view === undefined) return "context-budget: this session's provider is not guarded (no providers entry)."
     const { cfg, total, rate, samples, lastTtftMs, target } = view
     const trip = (cond) => (cond ? '   [TRIP]' : '')
-    const lines = [`context-guard (${target.provider} / ${target.model})`]
+    const lines = [`context-budget (${target.provider} / ${target.model})`]
     lines.push(`  context: ${total} tokens${cfg.hardCeilingTokens === undefined ? '' : `   ceiling ${cfg.hardCeilingTokens}${trip(total > cfg.hardCeilingTokens)}`}`)
     if (cfg.maxTtftMs !== undefined) lines.push(`  last ttft: ${lastTtftMs === undefined ? 'none yet' : sec(lastTtftMs)}   limit ${sec(cfg.maxTtftMs)}${trip(lastTtftMs !== undefined && lastTtftMs > cfg.maxTtftMs)}`)
     lines.push(`  measured rate: ${rate === undefined ? 'no samples yet' : `${tokPerSec(rate)} (${samples} sample${samples === 1 ? '' : 's'})`}`)
@@ -237,8 +237,8 @@ export function apply(ctx, config = {}, internals = {}) {
   }
 
   ctx.commands.register({
-    name: 'context-guard',
-    description: 'Show context guard measurements for this session',
+    name: 'context-budget',
+    description: 'Show context budget measurements for this session',
     handler: (invocation) => ({ kind: 'success', text: report(invocation.agent) }),
   })
 }

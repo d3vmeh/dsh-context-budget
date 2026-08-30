@@ -138,7 +138,7 @@ describe('llm/stream measurement', () => {
     expect(out).toEqual(chunks)
     ctx.tokenMeter.measure.mockReturnValue({ totalTokens: 10, nodes: [] })
     await stepL({ agent: fakeAgent({ id: 's1' }), signal: signal() }, next)
-    expect(ctx.logger.info.mock.calls[0][0]).toMatch(/^context-guard: p session=s1 predicted: cold prefill/)
+    expect(ctx.logger.info.mock.calls[0][0]).toMatch(/^context-budget: p session=s1 predicted: cold prefill/)
   })
 
   it('ignores unlisted providers and streams without usage', async () => {
@@ -269,13 +269,13 @@ describe('agent/pre-step decision', () => {
   })
 })
 
-describe('/context-guard command and exporter', () => {
+describe('/context-budget command and exporter', () => {
   it('prints measurements with the compact-now estimate', async () => {
     const { streamL, now, ctx, commands } = setup({ p: { hardCeilingTokens: 100, maxColdPrefillMs: 60000, retainTokens: 20 } })
     await stream(streamL, { provider: 'p', sessionId: 'session-abcdef1234' }, [usage(2000, 0), finish], 1000, now)
     ctx.tokenMeter.measure.mockReturnValue({ totalTokens: 150, nodes: [] })
     const text = commands[0].handler({ agent: fakeAgent(), rawInput: '' }).text
-    expect(commands[0].name).toBe('context-guard')
+    expect(commands[0].name).toBe('context-budget')
     expect(text).toContain('context: 150 tokens')
     expect(text).toMatch(/ceiling 100.*\[TRIP\]/)
     expect(text).toMatch(/measured rate: 2000 tok\/s \(1 sample\)/)
@@ -290,14 +290,14 @@ describe('/context-guard command and exporter', () => {
     expect(commands[0].handler({ agent: fakeAgent(), rawInput: '' }).text).toMatch(/no samples yet/)
   })
 
-  it('exporter prints only context-guard lines', () => {
+  it('exporter prints only context-budget lines', () => {
     const { ctx } = setup({ p: { hardCeilingTokens: 1 } })
     const [exporter] = ctx.logger.exporter.mock.calls[0]
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     try {
-      exporter.export({ args: ['context-guard: p x'] })
+      exporter.export({ args: ['context-budget: p x'] })
       exporter.export({ args: ['other: y'] })
-      expect(log.mock.calls).toEqual([['context-guard: p x']])
+      expect(log.mock.calls).toEqual([['context-budget: p x']])
     } finally { log.mockRestore() }
   })
 })
