@@ -1,0 +1,20 @@
+{
+  "name": "dsh-context-guard",
+  "version": "0.1.0",
+  "description": "Keeps a local model's context at a size the GPU handles well: measured prefill speed, hard ceiling, early compaction for DeepSeek Harness",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": ["src", "cordis.patch.yml"],
+  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "llama.cpp", "context", "compaction"],
+  "repository": { "type": "git", "url": "git+https://github.com/d3vmeh/dsh-context-guard.git" },
+  "scripts": { "test": "vitest run" },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "dependencies": { "@deepseek-ai/schemastery": "^3.18.1" },
+  "peerDependencies": { "@deepseek-ai/dsh-compaction": "^0.1.1-rc.2" },
+  "devDependencies": { "@deepseek-ai/dsh-compaction": "^0.1.1-rc.2", "vitest": "^4.1.11" }
+}

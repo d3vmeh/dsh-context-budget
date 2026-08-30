@@ -1,0 +1,15 @@
+# Bundle layer for dsh-context-guard: inserts the plugin with no providers guarded.
+# Configure it from your profile's cordis.patch.yml with an override row:
+#
+# - id: context-guard
+#   config:
+#     providers:
+#       llamacpp:
+#         hardCeilingTokens: 120000
+#         maxColdPrefillMs: 600000
+#         action: warn
+- insert:
+    - id: context-guard
+      name: dsh-context-guard
+      config:
+        providers: {}
