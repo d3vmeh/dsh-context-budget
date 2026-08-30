@@ -70,7 +70,7 @@ export function evaluate(cfg, total, lastTtftMs, rate) {
     return { check: 'observed', detail: `last ttft ${sec(lastTtftMs)} > ${sec(cfg.maxTtftMs)}` }
   }
   if (cfg.maxColdPrefillMs !== undefined && rate !== undefined && total / rate > cfg.maxColdPrefillMs) {
-    return { check: 'predicted', detail: `predicted cold prefill ${min(total / rate)} > ${min(cfg.maxColdPrefillMs)}` }
+    return { check: 'predicted', detail: `cold prefill ${min(total / rate)} > ${min(cfg.maxColdPrefillMs)}` }
   }
   return undefined
 }

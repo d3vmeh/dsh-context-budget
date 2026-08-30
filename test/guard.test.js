@@ -138,7 +138,7 @@ describe('llm/stream measurement', () => {
     expect(out).toEqual(chunks)
     ctx.tokenMeter.measure.mockReturnValue({ totalTokens: 10, nodes: [] })
     await stepL({ agent: fakeAgent({ id: 's1' }), signal: signal() }, next)
-    expect(ctx.logger.info.mock.calls[0][0]).toMatch(/^context-guard: p session=s1 predicted: predicted cold prefill/)
+    expect(ctx.logger.info.mock.calls[0][0]).toMatch(/^context-guard: p session=s1 predicted: cold prefill/)
   })
 
   it('ignores unlisted providers and streams without usage', async () => {
