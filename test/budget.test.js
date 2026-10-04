@@ -336,3 +336,16 @@ describe('v0.2: per-sample timestamp and cache state', () => {
     expect(text).not.toContain('tok in')
   })
 })
+
+describe('package', () => {
+  it('accepts the dsh versions it was checked against', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const { default: semver } = await import('semver')
+    const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+    const range = pkg.peerDependencies['@deepseek-ai/dsh-compaction']
+    // dsh skips a plugin at startup when its dsh peer range rejects the running version
+    for (const version of ['0.1.1-rc.2', '0.2.0-rc.2']) {
+      expect(semver.satisfies(version, range, { includePrerelease: true })).toBe(true)
+    }
+  })
+})
